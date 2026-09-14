@@ -3,7 +3,16 @@ set -Eeuo pipefail
 
 OUTDIR="/export-files"
 
-read -rp "Enter VM ID to export: " VMID
+if [[ $# -ge 1 ]]; then
+    VMID="$1"
+else
+    if [[ ! -t 0 && ! -r /dev/tty ]]; then
+        echo "ERROR: No VM ID supplied and no interactive terminal available."
+        echo "Usage: $0 <VMID>"
+        exit 1
+    fi
+    read -rp "Enter VM ID to export: " VMID </dev/tty
+fi
 
 if [[ ! "$VMID" =~ ^[0-9]+$ ]]; then
     echo "ERROR: VM ID must be a number."
@@ -107,83 +116,39 @@ memory_bytes = int(memory_bytes)
 cores = int(cores)
 name = html.escape(name)
 
-xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+xml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <ovf:Envelope
  xmlns:ovf="http://schemas.dmtf.org/ovf/envelope/1"
  xmlns:rasd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ResourceAllocationSettingData"
  xmlns:vssd="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_VirtualSystemSettingData">
-
   <ovf:References>
     <ovf:File ovf:id="file1" ovf:href="{file_name}" ovf:size="{vmdk_size}"/>
   </ovf:References>
-
   <ovf:DiskSection>
     <ovf:Info>Virtual disk information</ovf:Info>
-    <ovf:Disk ovf:diskId="vmdisk1"
-      ovf:fileRef="file1"
-      ovf:capacity="{disk_bytes}"
-      ovf:capacityAllocationUnits="byte"
-      ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
+    <ovf:Disk ovf:diskId="vmdisk1" ovf:fileRef="file1" ovf:capacity="{disk_bytes}" ovf:capacityAllocationUnits="byte" ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"/>
   </ovf:DiskSection>
-
   <ovf:NetworkSection>
     <ovf:Info>Network information</ovf:Info>
-    <ovf:Network ovf:name="VM Network">
-      <ovf:Description>VM Network</ovf:Description>
-    </ovf:Network>
+    <ovf:Network ovf:name="VM Network"><ovf:Description>VM Network</ovf:Description></ovf:Network>
   </ovf:NetworkSection>
-
   <ovf:VirtualSystem ovf:id="vm-{vmid}">
     <ovf:Info>Virtual machine exported from Proxmox VE</ovf:Info>
     <ovf:Name>{name}</ovf:Name>
-
     <ovf:OperatingSystemSection ovf:id="36">
-      <ovf:Info>Linux 64-bit</ovf:Info>
-      <ovf:Description>Linux 64-bit</ovf:Description>
+      <ovf:Info>Linux 64-bit</ovf:Info><ovf:Description>Linux 64-bit</ovf:Description>
     </ovf:OperatingSystemSection>
-
     <ovf:VirtualHardwareSection>
       <ovf:Info>Virtual hardware</ovf:Info>
-      <ovf:System>
-        <vssd:ElementName>Virtual Machine</vssd:ElementName>
-        <vssd:InstanceID>0</vssd:InstanceID>
-        <vssd:VirtualSystemType>vmx-07</vssd:VirtualSystemType>
-      </ovf:System>
-
-      <ovf:Item>
-        <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
-        <rasd:ElementName>{cores} virtual CPU(s)</rasd:ElementName>
-        <rasd:InstanceID>1</rasd:InstanceID>
-        <rasd:ResourceType>3</rasd:ResourceType>
-        <rasd:VirtualQuantity>{cores}</rasd:VirtualQuantity>
-      </ovf:Item>
-
-      <ovf:Item>
-        <rasd:AllocationUnits>byte</rasd:AllocationUnits>
-        <rasd:ElementName>Memory</rasd:ElementName>
-        <rasd:InstanceID>2</rasd:InstanceID>
-        <rasd:ResourceType>4</rasd:ResourceType>
-        <rasd:VirtualQuantity>{memory_bytes}</rasd:VirtualQuantity>
-      </ovf:Item>
-
-      <ovf:Item>
-        <rasd:ElementName>Hard Disk 1</rasd:ElementName>
-        <rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource>
-        <rasd:InstanceID>3</rasd:InstanceID>
-        <rasd:ResourceType>17</rasd:ResourceType>
-      </ovf:Item>
-
-      <ovf:Item>
-        <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
-        <rasd:Connection>VM Network</rasd:Connection>
-        <rasd:ElementName>Network Adapter 1</rasd:ElementName>
-        <rasd:InstanceID>4</rasd:InstanceID>
-        <rasd:ResourceType>10</rasd:ResourceType>
-      </ovf:Item>
+      <ovf:System><vssd:ElementName>Virtual Machine</vssd:ElementName><vssd:InstanceID>0</vssd:InstanceID><vssd:VirtualSystemType>vmx-07</vssd:VirtualSystemType></ovf:System>
+      <ovf:Item><rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits><rasd:ElementName>{cores} virtual CPU(s)</rasd:ElementName><rasd:InstanceID>1</rasd:InstanceID><rasd:ResourceType>3</rasd:ResourceType><rasd:VirtualQuantity>{cores}</rasd:VirtualQuantity></ovf:Item>
+      <ovf:Item><rasd:AllocationUnits>byte</rasd:AllocationUnits><rasd:ElementName>Memory</rasd:ElementName><rasd:InstanceID>2</rasd:InstanceID><rasd:ResourceType>4</rasd:ResourceType><rasd:VirtualQuantity>{memory_bytes}</rasd:VirtualQuantity></ovf:Item>
+      <ovf:Item><rasd:ElementName>Hard Disk 1</rasd:ElementName><rasd:HostResource>ovf:/disk/vmdisk1</rasd:HostResource><rasd:InstanceID>3</rasd:InstanceID><rasd:ResourceType>17</rasd:ResourceType></ovf:Item>
+      <ovf:Item><rasd:AutomaticAllocation>true</rasd:AutomaticAllocation><rasd:Connection>VM Network</rasd:Connection><rasd:ElementName>Network Adapter 1</rasd:ElementName><rasd:InstanceID>4</rasd:InstanceID><rasd:ResourceType>10</rasd:ResourceType></ovf:Item>
     </ovf:VirtualHardwareSection>
   </ovf:VirtualSystem>
 </ovf:Envelope>
-"""
+'''
 
 with open(ovf_file, "w", encoding="utf-8") as f:
     f.write(xml)
