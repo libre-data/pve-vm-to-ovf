@@ -3,15 +3,22 @@ set -Eeuo pipefail
 
 OUTDIR="/export-files"
 
+# When invoked as: curl ... | bash, stdin belongs to curl. Switch stdin
+# back to the user's terminal so interactive input still works.
+if [[ ! -t 0 && -r /dev/tty ]]; then
+    exec </dev/tty
+fi
+
 if [[ $# -ge 1 ]]; then
     VMID="$1"
 else
-    if [[ ! -t 0 && ! -r /dev/tty ]]; then
-        echo "ERROR: No VM ID supplied and no interactive terminal available."
-        echo "Usage: $0 <VMID>"
-        exit 1
-    fi
-    read -rp "Enter VM ID to export: " VMID </dev/tty
+    read -r -p "Enter VM ID to export: " VMID
+fi
+
+if [[ -z "${VMID:-}" ]]; then
+    echo "ERROR: No VM ID supplied."
+    echo "Usage: $0 <VMID>"
+    exit 1
 fi
 
 if [[ ! "$VMID" =~ ^[0-9]+$ ]]; then
@@ -135,9 +142,7 @@ xml = f'''<?xml version="1.0" encoding="UTF-8"?>
   <ovf:VirtualSystem ovf:id="vm-{vmid}">
     <ovf:Info>Virtual machine exported from Proxmox VE</ovf:Info>
     <ovf:Name>{name}</ovf:Name>
-    <ovf:OperatingSystemSection ovf:id="36">
-      <ovf:Info>Linux 64-bit</ovf:Info><ovf:Description>Linux 64-bit</ovf:Description>
-    </ovf:OperatingSystemSection>
+    <ovf:OperatingSystemSection ovf:id="36"><ovf:Info>Linux 64-bit</ovf:Info><ovf:Description>Linux 64-bit</ovf:Description></ovf:OperatingSystemSection>
     <ovf:VirtualHardwareSection>
       <ovf:Info>Virtual hardware</ovf:Info>
       <ovf:System><vssd:ElementName>Virtual Machine</vssd:ElementName><vssd:InstanceID>0</vssd:InstanceID><vssd:VirtualSystemType>vmx-07</vssd:VirtualSystemType></ovf:System>
