@@ -45,7 +45,6 @@ CORES="$(awk '/^cores:/{print $2; exit}' <<< "$CONFIG")"
 MEMORY_MIB="${MEMORY_MIB:-512}"
 CORES="${CORES:-1}"
 
-# Collect disk metadata before shutdown.
 DISK_KEYS=()
 DISK_PATHS=()
 DISK_BYTES=()
@@ -111,7 +110,6 @@ for i in "${!DISKS[@]}"; do
     qemu-img convert -p -O vmdk -o subformat=streamOptimized "${DISK_PATHS[$i]}" "${VMDKS[$i]}"
 done
 
-# Build a compact metadata file for OVF generation.
 META="$(mktemp)"
 trap 'rm -f "$META"' EXIT
 for i in "${!DISKS[@]}"; do
@@ -133,9 +131,7 @@ with open(meta_file, encoding="utf-8") as f:
         key, filename, capacity, size = line.rstrip("\n").split("\t")
         rows.append((key, filename, int(capacity), int(size)))
 
-refs = []
-disks = []
-items = []
+refs, disks, items = [], [], []
 for n, (key, filename, capacity, size) in enumerate(rows, 1):
     file_id = f"file{n}"
     disk_id = f"vmdisk{n}"
@@ -185,3 +181,38 @@ echo "OVF: $OVF"
 for vmdk in "${VMDKS[@]}"; do echo "VMDK: $vmdk"; done
 echo
 echo "VM $VMID is powered OFF."
+echo
+echo "Starting temporary download server..."
+echo
+
+cd "$OUTDIR"
+SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+SERVER_IP="${SERVER_IP:-127.0.0.1}"
+python3 -m http.server 8080 --bind 0.0.0.0 >/tmp/pve-ovf-http.log 2>&1 &
+HTTP_PID=$!
+
+sleep 1
+if ! kill -0 "$HTTP_PID" 2>/dev/null; then
+    echo "ERROR: Could not start HTTP server on port 8080."
+    cat /tmp/pve-ovf-http.log 2>/dev/null || true
+    exit 1
+fi
+
+cleanup_http() {
+    kill "$HTTP_PID" 2>/dev/null || true
+    wait "$HTTP_PID" 2>/dev/null || true
+}
+trap 'cleanup_http; rm -f "$META"' EXIT
+
+echo "Download your files here:"
+echo
+printf '  http://%s:8080/\n' "$SERVER_IP"
+echo
+echo "Open the link in your browser and download the OVF + VMDK files."
+echo "Press ENTER here after the download is complete to stop the server."
+echo
+read -r -p "Press ENTER to stop the download server... " _
+echo
+cleanup_http
+echo "Download server stopped."
+echo "VM $VMID remains powered OFF."
