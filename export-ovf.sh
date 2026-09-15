@@ -223,4 +223,14 @@ read -r -p "Press ENTER to stop the download server... " _ < /dev/tty
 echo
 cleanup_http
 echo "Download server stopped."
+echo
+
+read -r -p "Delete the exported OVF and VMDK files? [y/N]: " DELETE_EXPORTS < /dev/tty
+if [[ "$DELETE_EXPORTS" =~ ^[Yy]$ ]]; then
+    rm -f "$OVF" "${VMDKS[@]}"
+    echo "Export files deleted."
+else
+    echo "Export files kept in $OUTDIR."
+fi
+
 echo "VM $VMID remains powered OFF."
