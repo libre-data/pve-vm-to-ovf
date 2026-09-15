@@ -3,7 +3,8 @@ set -Eeuo pipefail
 
 OUTDIR="/export-files"
 
-if [[ ! -t 0 && -r /dev/tty ]]; then
+# Keep interactive input connected to the terminal when launched via curl.
+if [[ -r /dev/tty ]]; then
     exec </dev/tty
 fi
 
@@ -188,6 +189,13 @@ echo
 cd "$OUTDIR"
 SERVER_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 SERVER_IP="${SERVER_IP:-127.0.0.1}"
+
+if ss -ltn 2>/dev/null | grep -q ':8080 '; then
+    echo "ERROR: Port 8080 is already in use."
+    echo "Stop the existing service and run the export again."
+    exit 1
+fi
+
 python3 -m http.server 8080 --bind 0.0.0.0 >/tmp/pve-ovf-http.log 2>&1 &
 HTTP_PID=$!
 
@@ -206,12 +214,12 @@ trap 'cleanup_http; rm -f "$META"' EXIT
 
 echo "Download your files here:"
 echo
-printf '  http://%s:8080/\n' "$SERVER_IP"
+echo "  http://${SERVER_IP}:8080/"
 echo
-echo "Open the link in your browser and download the OVF + VMDK files."
+echo "Open the link in your browser and download the OVF + all VMDK files."
 echo "Press ENTER here after the download is complete to stop the server."
 echo
-read -r -p "Press ENTER to stop the download server... " _
+read -r -p "Press ENTER to stop the download server... " _ < /dev/tty
 echo
 cleanup_http
 echo "Download server stopped."
