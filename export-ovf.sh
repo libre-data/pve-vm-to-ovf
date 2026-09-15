@@ -3,7 +3,6 @@ set -Eeuo pipefail
 
 OUTDIR="/export-files"
 
-# Keep interactive input connected to the terminal when launched via curl.
 if [[ -r /dev/tty ]]; then
     exec </dev/tty
 fi
@@ -224,8 +223,9 @@ echo
 cleanup_http
 echo "Download server stopped."
 echo
-
-read -r -p "Delete the exported OVF and VMDK files? [y/N]: " DELETE_EXPORTS < /dev/tty
+echo "Do you want to delete the exported OVF and VMDK files?"
+echo "Press ENTER to keep them."
+read -r -p "Delete exports? [y/N]: " DELETE_EXPORTS < /dev/tty
 if [[ "$DELETE_EXPORTS" =~ ^[Yy]$ ]]; then
     rm -f "$OVF" "${VMDKS[@]}"
     echo "Export files deleted."
